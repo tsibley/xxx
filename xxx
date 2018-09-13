@@ -15,6 +15,8 @@ given paths.  If no paths are given, it starts from the current directory.  If
 a git respository (a directory with a .git directory) is encountered during
 this walk, only the files tracked by git in the repository are searched.
 
+Output of --list is automatically paged through XXX_PAGER, PAGER, or less.
+
 Written by Thomas Sibley <https://tsibley.net>.
 """
 
@@ -23,9 +25,12 @@ import re
 import os
 import subprocess
 import shlex
+from contextlib import redirect_stdout
+from io import TextIOWrapper
 from itertools import takewhile
 from pathlib import Path
 from shlex import split as shellwords
+from subprocess import Popen
 from tempfile import NamedTemporaryFile
 from typing import List, NamedTuple
 
@@ -33,6 +38,8 @@ from typing import List, NamedTuple
 VERSION = '1.0.0'
 
 EDITOR = shellwords(os.environ.get("XXX_EDITOR", "vim -q"))
+PAGER  = shellwords(os.environ.get("XXX_PAGER",
+                    os.environ.get("PAGER", "less -SRFXi")))
 
 TAG = re.compile("(" + "|".join(["XXX", "TODO", "FIXME"]) + ")")
 
@@ -124,22 +131,38 @@ def LIST(xxxs):
     on_yellow = "\033[0;103m"
     reset     = "\033[0m"
 
-    printed = set()
+    # Ensure the pager's environment includes LESS=RK, either by setting it or
+    # appending it to an existing value, so less interprets color escapes and
+    # handles interrupts gracefully (if it is the pager).
+    env = os.environ.copy()
+    env.setdefault("LESS", "")
 
-    for xxx in xxxs:
-        if xxx.file not in printed:
-            printf("{green}{xxx.file}{reset}", locals())
-            printed.add(xxx.file)
+    if "R" not in env["LESS"]:
+        env["LESS"] += "R"
 
-        for index, line in enumerate(xxx.remark):
-            if index == 0:
-                line = TAG.sub(on_yellow + r"\1" + reset, line)
-                printf("{blue}{xxx.line_number}{cyan}:{reset} {line}", locals())
-            else:
-                indent = " " * len(str(xxx.line_number))
-                printf("{indent}{cyan}:{reset} {line}", locals())
+    if "K" not in env["LESS"]:
+        env["LESS"] += "K"
 
-        print()
+    with Popen(PAGER, stdin = subprocess.PIPE, env = env) as pager, \
+         TextIOWrapper(pager.stdin, encoding = "utf-8") as pager_stdin, \
+         redirect_stdout(pager_stdin):
+
+        printed = set()
+
+        for xxx in xxxs:
+            if xxx.file not in printed:
+                printf("{green}{xxx.file}{reset}", locals())
+                printed.add(xxx.file)
+
+            for index, line in enumerate(xxx.remark):
+                if index == 0:
+                    line = TAG.sub(on_yellow + r"\1" + reset, line)
+                    printf("{blue}{xxx.line_number}{cyan}:{reset} {line}", locals())
+                else:
+                    indent = " " * len(str(xxx.line_number))
+                    printf("{indent}{cyan}:{reset} {line}", locals())
+
+            print()
 
 
 def EDIT(xxxs):

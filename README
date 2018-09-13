@@ -13,6 +13,8 @@ given paths.  If no paths are given, it starts from the current directory.  If
 a git respository (a directory with a .git directory) is encountered during
 this walk, only the files tracked by git in the repository are searched.
 
+Output of --list is automatically paged through XXX_PAGER, PAGER, or less.
+
 positional arguments:
   <path>                Limit output of remarks to those in the given paths.
                         Defaults to searching the current directory.
