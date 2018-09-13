@@ -1,0 +1,30 @@
+usage: xxx [-l | --list] [--with <word>] [<path> [<path> ...]]
+       xxx [-e | --edit] [--with <word>] [<path> [<path> ...]]
+       xxx --version
+       xxx --help
+
+List, filter, and edit XXX/TODO/FIXME remarks in a collection of files.
+
+In a git repository, this command will only search files tracked by git,
+limited by the paths given on the command-line.
+
+Outside a git repository, this command walks the filesystem starting with the
+given paths.  If no paths are given, it starts from the current directory.  If
+a git respository (a directory with a .git directory) is encountered during
+this walk, only the files tracked by git in the repository are searched.
+
+positional arguments:
+  <path>                Limit output of remarks to those in the given paths.
+                        Defaults to searching the current directory.
+
+optional arguments:
+  -l, --list            List remarks for the given paths
+  -e, --edit            Edit remarks for the given paths using vim's quickfix
+                        list. Set XXX_EDITOR to use your preferred editor.
+  -w <word>, --with <word>
+                        Limit output of remarks to those with the given
+                        keyword. May be used more than once.
+  -h, --help            Show this help
+  -v, --version         Show the version of xxx
+
+Written by Thomas Sibley <https://tsibley.net>.

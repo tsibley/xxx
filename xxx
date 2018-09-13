@@ -1,0 +1,297 @@
+#!/usr/bin/env python3
+"""
+usage: xxx [-l | --list] [--with <word>] [<path> [<path> ...]]
+       xxx [-e | --edit] [--with <word>] [<path> [<path> ...]]
+       xxx --version
+       xxx --help
+
+List, filter, and edit XXX/TODO/FIXME remarks in a collection of files.
+
+In a git repository, this command will only search files tracked by git,
+limited by the paths given on the command-line.
+
+Outside a git repository, this command walks the filesystem starting with the
+given paths.  If no paths are given, it starts from the current directory.  If
+a git respository (a directory with a .git directory) is encountered during
+this walk, only the files tracked by git in the repository are searched.
+
+Written by Thomas Sibley <https://tsibley.net>.
+"""
+
+import argparse
+import re
+import os
+import subprocess
+import shlex
+from itertools import takewhile
+from pathlib import Path
+from shlex import split as shellwords
+from tempfile import NamedTemporaryFile
+from typing import List, NamedTuple
+
+
+VERSION = '1.0.0'
+
+EDITOR = shellwords(os.environ.get("XXX_EDITOR", "vim -q"))
+
+TAG = re.compile("(" + "|".join(["XXX", "TODO", "FIXME"]) + ")")
+
+XXX = NamedTuple("XXX", [
+    ("file", Path),
+    ("line_number", int),
+    ("remark", List[str]),
+    ("prefix", str),
+    ("spacing", str),
+])
+
+
+def MAIN(args):
+    doc_paragraphs = __doc__.strip("\n").split("\n\n")
+
+    parser = argparse.ArgumentParser(
+        "xxx",
+        usage           = ltrim("usage: ", doc_paragraphs[0]),
+        description     = "\n\n".join(doc_paragraphs[1:-1]),
+        epilog          = doc_paragraphs[-1],
+        formatter_class = argparse.RawDescriptionHelpFormatter,
+        add_help        = False)
+
+    # Modes of operation
+    modes = parser.add_mutually_exclusive_group()
+
+    modes.add_argument(
+        "-l", "--list",
+        help    = "List remarks for the given paths",
+        action  = "store_const",
+        dest    = "mode",
+        const   = LIST)
+
+    modes.add_argument(
+        "-e", "--edit",
+        help    = "Edit remarks for the given paths using vim's quickfix list.  "
+                  "Set XXX_EDITOR to use your preferred editor.",
+        action  = "store_const",
+        dest    = "mode",
+        const   = EDIT)
+
+    parser.set_defaults(mode = LIST)
+
+    # Options
+    parser.add_argument(
+        "-w", "--with",
+        help    = "Limit output of remarks to those with the given keyword.  "
+                  "May be used more than once.",
+        metavar = "<word>",
+        action  = "append",
+        dest    = "words")
+
+    modes.add_argument(
+        "-h", "--help",
+        help    = "Show this help",
+        action  = "help")
+
+    modes.add_argument(
+        "-v", "--version",
+        help    = "Show the version of %(prog)s",
+        action  = "version",
+        version = "%(prog)s " + VERSION)
+
+    parser.add_argument(
+        "paths",
+        help    = "Limit output of remarks to those in the given paths.  Defaults to searching the current directory.",
+        metavar = "<path>",
+        nargs   = "*")
+
+    opts = parser.parse_args(args)
+
+    # Find XXXs
+    xxxs = (
+        xxx for xxx in grep(opts.paths)
+             if not opts.words
+             or wordset(opts.words) & wordset(xxx.remark)
+    )
+
+    # Display what we found
+    opts.mode(xxxs)
+
+
+def LIST(xxxs):
+    # Easier to put these here than require the termcolor library from outside
+    # the standard library.
+    green     = "\033[1;32m"
+    blue      = "\033[0;34m"
+    cyan      = "\033[0;36m"
+    on_yellow = "\033[0;103m"
+    reset     = "\033[0m"
+
+    printed = set()
+
+    for xxx in xxxs:
+        if xxx.file not in printed:
+            printf("{green}{xxx.file}{reset}", locals())
+            printed.add(xxx.file)
+
+        for index, line in enumerate(xxx.remark):
+            if index == 0:
+                line = TAG.sub(on_yellow + r"\1" + reset, line)
+                printf("{blue}{xxx.line_number}{cyan}:{reset} {line}", locals())
+            else:
+                indent = " " * len(str(xxx.line_number))
+                printf("{indent}{cyan}:{reset} {line}", locals())
+
+        print()
+
+
+def EDIT(xxxs):
+    errors = NamedTemporaryFile(
+        prefix = "xxx-",
+        suffix = ".err",
+        mode = "w",
+        encoding = "utf-8")
+
+    for xxx in xxxs:
+        printf("{xxx.file}:{xxx.line_number}: {xxx.remark[0]}", locals(), file = errors)
+
+    errors.flush()
+
+    os.execvp(EDITOR[0], [*EDITOR, errors.name])
+
+
+def wordset(lines):
+    return set(
+        re.sub(r"\W", "", word.lower())
+            for line in map(str.split, lines)
+            for word in line
+    )
+
+
+def printf(string, mapping, **kwargs):
+    print(string.format_map(mapping), **kwargs)
+
+
+def grep(paths):
+    for file in ls(paths):
+        with file.open(encoding = "UTF-8") as fh:
+            try:
+                xxx = None
+
+                for line_number, line in enumerate(fh, 1):
+                    match = re.search(r"^(?P<prefix>.*?)(?P<spacing>\s*)\b(?P<remark>" + TAG.pattern + r"\b(?![\"']).*)$", line)
+
+                    if match:
+                        # See comment below, in the elif block, for why prefix
+                        # and spacing are separate.
+                        prefix  = match.group("prefix")
+                        spacing = match.group("spacing")
+                        remark  = match.group("remark")
+
+                        xxx = XXX(file, line_number, [remark], prefix, spacing)
+
+                    # We're inside a remark…
+                    elif xxx is not None:
+
+                        # Either it continues…
+                        if line.startswith(xxx.prefix):
+
+                            # The prefix should always be removed, but the
+                            # spacing may not be present for blank continuation
+                            # lines which omit trailing whitespace.  Consider
+                            # the example below where the end-of-line is marked
+                            # by a ↵ character:
+                            #
+                            #    // XXX: foo bar↵
+                            #    //↵
+                            #    // more notes here↵
+                            #
+                            # The second line contains the prefix and should be
+                            # part of the continued remark, but lacks the
+                            # spacing.
+                            #
+                            # XXX TODO: Support for comment blocks, e.g. /* */
+                            # and """ """, without middle leaders.
+                            continued_remark = ltrim(xxx.spacing, ltrim(xxx.prefix, line.rstrip("\n")))
+
+                            xxx.remark.append(continued_remark)
+
+                        # …or ends.
+                        else:
+                            yield xxx
+                            xxx = None
+
+            except UnicodeDecodeError:
+                # Likely a binary file.  It may be text encoded in something
+                # other than UTF-8, but we have no way of knowing what it is
+                # for sure.
+                pass
+
+
+def ls(paths):
+    try:
+        return git_ls(limit_to = paths)
+    except subprocess.CalledProcessError:
+        return walk(paths or ["."])
+
+
+def git_ls(repo = ".", limit_to = []):
+    for subpath in (Path(repo, path) for path in limit_to):
+        assert subpath.exists(), "The path '" + str(subpath) + "' does not exist in the git repository."
+
+    return (
+        Path(repo, file) for file in
+            capture_output(["git", "-C", repo, "ls-files", "--", *limit_to]))
+
+
+def walk(paths):
+    def abort(error):
+        raise error
+
+    for path in paths:
+        for base, dirs, files in os.walk(path, onerror = abort, followlinks = True):
+            if ".git" in dirs:
+                # Prevent os.walk() from continuing down this tree.
+                dirs.clear()
+
+                # Instead, ask git to return indexed files.
+                yield from git_ls(base)
+            else:
+                yield from (Path(base, file) for file in files)
+
+
+def capture_output(argv):
+    """
+    Run the command specified by the argument list and return a list of output
+    lines.
+
+    This wrapper around subprocess.run() exists because its own capture_output
+    parameter wasn't added until Python 3.7, and I'm aiming for compat with 3.5.
+    """
+    result = subprocess.run(
+        argv,
+        stdout = subprocess.PIPE,
+        stderr = subprocess.DEVNULL,
+        check  = True)
+
+    return result.stdout.decode("utf-8").splitlines()
+
+
+def ltrim(prefix, string):
+    return re.sub('^' + re.escape(prefix), '', string)
+
+
+if __name__ == "__main__":
+    try:
+        import sys
+        MAIN(sys.argv[1:])
+
+    except BrokenPipeError:
+        # From https://docs.python.org/3/library/signal.html#note-on-sigpipe:
+        #
+        #    Python flushes standard streams on exit.  Redirect remaining output
+        #    to /dev/null to avoid another BrokenPipeError at shutdown.
+        #
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+
+    except KeyboardInterrupt:
+        # Print a newline to leave cleaner console output
+        print()
