@@ -43,6 +43,12 @@ PAGER  = shellwords(os.environ.get("XXX_PAGER",
 
 TAG = re.compile("(" + "|".join(["XXX", "TODO", "FIXME"]) + ")")
 
+COMMENT_START_SEQUENCE = [
+    "#",    # Many shell-like languages
+    "//",   # Many C-like languages
+    "--",   # SQL
+]
+
 XXX = NamedTuple("XXX", [
     ("file", Path),
     ("line_number", int),
@@ -207,6 +213,20 @@ def grep(paths):
                         prefix  = match.group("prefix")
                         spacing = match.group("spacing")
                         remark  = match.group("remark")
+
+                        # Rescue single-line trailing XXX markers like:
+                        #
+                        #     foo = dubious_thing()     # FIXME
+                        #
+                        #     # I'll get to this later... TODO
+                        #
+                        # In both cases, the whole line becomes the remark.
+                        def prefix_starts_or_ends_with(string):
+                            return prefix.endswith(string) \
+                                or prefix.lstrip().startswith(string)
+
+                        if remark == "XXX" and any(map(prefix_starts_or_ends_with, COMMENT_START_SEQUENCE)):
+                            remark = line.strip()
 
                         xxx = XXX(file, line_number, [remark], prefix, spacing)
 
