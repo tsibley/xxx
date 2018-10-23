@@ -270,16 +270,16 @@ def grep(paths):
 
 def ls(paths):
     try:
-        return git_ls(limit_to = paths)
+        yield from git_ls(limit_to = paths)
     except subprocess.CalledProcessError:
-        return walk(paths or ["."])
+        yield from walk(paths or ["."])
 
 
 def git_ls(repo = ".", limit_to = []):
     for subpath in (Path(repo, path) for path in limit_to):
         assert subpath.exists(), "The path '" + str(subpath) + "' does not exist in the git repository."
 
-    return (
+    yield from (
         Path(repo, file) for file in
             capture_output(["git", "-C", repo, "ls-files", "--", *limit_to]))
 
