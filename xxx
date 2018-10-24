@@ -111,7 +111,8 @@ def MAIN(args):
 
     parser.add_argument(
         "paths",
-        help    = "Limit output of remarks to those in the given paths.  Defaults to searching the current directory.",
+        help    = "Limit output of remarks to those in the given paths.  "
+                  "Defaults to searching the current directory.",
         metavar = "<path>",
         nargs   = "*")
 
