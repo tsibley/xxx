@@ -98,6 +98,15 @@ def MAIN(args):
         action  = "append",
         dest    = "words")
 
+    parser.add_argument(
+        "-b", "--branch",
+        help    = "Limit output of remarks to those added by the current git branch "
+                  "since diverging from the given ref.  Defaults to master if no ref "
+                  "is given.",
+        metavar = "<ref>",
+        nargs   = "?",
+        const   = "master")
+
     modes.add_argument(
         "-h", "--help",
         help    = "Show this help",
@@ -121,11 +130,23 @@ def MAIN(args):
     # Construct filter sets
     filter_words = wordset(opts.words or [])
 
+    if opts.branch:
+        filter_lines = set(
+            (filename, line)
+                for filename, lines in git_lines_added(opts.branch)
+                for line in lines)
+    else:
+        filter_lines = None
+
     # Find XXXs
     xxxs = (
         xxx for xxx in grep(opts.paths)
+
              if (not filter_words
                  or filter_words & wordset(xxx.remark))
+
+            and (filter_lines is None
+                 or (xxx.file, xxx.line_number) in filter_lines)
     )
 
     # Display what we found
@@ -307,6 +328,33 @@ def walk(paths):
                 yield from git_ls(base)
             else:
                 yield from (Path(base, file) for file in files)
+
+
+def git_lines_added(since_ref = "master"):
+    cwd_prefix = capture_output(["git", "rev-parse", "--show-prefix"])[0]
+    merge_base = capture_output(["git", "merge-base", since_ref, "HEAD"])[0]
+
+    HUNK_HEADER = r'^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<length>\d+))?'
+
+    filename = None
+
+    for line in capture_output(["git", "diff", "--no-ext-diff", "-U0", merge_base]):
+        if line.startswith("+++ b/"):
+            filename = Path(ltrim("+++ b/", line)).relative_to(cwd_prefix)
+
+        elif filename and line.startswith("@@"):
+            match = re.search(HUNK_HEADER, line, re.ASCII)
+            assert match, "Line starting with @@ didn't match hunk header pattern"
+
+            # A missing length (None) means a length of 1, i.e. the ending line
+            # is the same as the starting line.  A length of 0 means the hunk
+            # is a pure deletion.
+            start  = int(match.group("start"))
+            length = int(match.group("length") or 1)
+
+            if length:
+                # insertion (+) filename, line interval [start, end)
+                yield (filename, range(start, start + length))
 
 
 def capture_output(argv):
