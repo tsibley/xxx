@@ -118,11 +118,14 @@ def MAIN(args):
 
     opts = parser.parse_args(args)
 
+    # Construct filter sets
+    filter_words = wordset(opts.words or [])
+
     # Find XXXs
     xxxs = (
         xxx for xxx in grep(opts.paths)
-             if not opts.words
-             or wordset(opts.words) & wordset(xxx.remark)
+             if (not filter_words
+                 or filter_words & wordset(xxx.remark))
     )
 
     # Display what we found
