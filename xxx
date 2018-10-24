@@ -210,6 +210,41 @@ def grep(paths):
                 xxx = None
 
                 for line_number, line in enumerate(fh, 1):
+                    # When we're inside a remark…
+                    if xxx is not None:
+
+                        # …either the current line continues the remark…
+                        if line.startswith(xxx.prefix):
+
+                            # The prefix should always be removed, but the
+                            # spacing may not be present for blank continuation
+                            # lines which omit trailing whitespace.  Consider
+                            # the example below where the end-of-line is marked
+                            # by a ↵ character:
+                            #
+                            #    // XXX: foo bar↵
+                            #    //↵
+                            #    // more notes here↵
+                            #
+                            # The second line contains the prefix and should be
+                            # part of the continued remark, but lacks the
+                            # spacing.
+                            #
+                            # XXX TODO: Support for comment blocks, e.g. /* */
+                            # and """ """, without middle leaders.
+                            continued_remark = ltrim(xxx.spacing, ltrim(xxx.prefix, line.rstrip("\n")))
+
+                            xxx.remark.append(continued_remark)
+                            continue
+
+                        # …or ends the remark.
+                        else:
+                            yield xxx
+                            xxx = None
+
+                    # Not inside a remark, so let's look for a new one.
+                    assert xxx is None
+
                     match = re.search(r"^(?P<prefix>.*?)(?P<spacing>\s*)\b(?P<remark>" + TAG.pattern + r"\b(?![\"']).*)$", line)
 
                     if match:
@@ -234,37 +269,6 @@ def grep(paths):
                             remark = line.strip()
 
                         xxx = XXX(file, line_number, [remark], prefix, spacing)
-
-                    # We're inside a remark…
-                    elif xxx is not None:
-
-                        # Either it continues…
-                        if line.startswith(xxx.prefix):
-
-                            # The prefix should always be removed, but the
-                            # spacing may not be present for blank continuation
-                            # lines which omit trailing whitespace.  Consider
-                            # the example below where the end-of-line is marked
-                            # by a ↵ character:
-                            #
-                            #    // XXX: foo bar↵
-                            #    //↵
-                            #    // more notes here↵
-                            #
-                            # The second line contains the prefix and should be
-                            # part of the continued remark, but lacks the
-                            # spacing.
-                            #
-                            # XXX TODO: Support for comment blocks, e.g. /* */
-                            # and """ """, without middle leaders.
-                            continued_remark = ltrim(xxx.spacing, ltrim(xxx.prefix, line.rstrip("\n")))
-
-                            xxx.remark.append(continued_remark)
-
-                        # …or ends.
-                        else:
-                            yield xxx
-                            xxx = None
 
             except UnicodeDecodeError:
                 # Likely a binary file.  It may be text encoded in something
