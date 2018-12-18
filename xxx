@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-usage: xxx [-l | --list] [--branch] [--with <word>] [<path> [<path> ...]]
-       xxx [-e | --edit] [--branch] [--with <word>] [<path> [<path> ...]]
+usage: xxx [-l | --list]  [--branch] [--with <word>] [<path> [<path> ...]]
+       xxx [-c | --count] [--branch] [--with <word>] [<path> [<path> ...]]
+       xxx [-e | --edit]  [--branch] [--with <word>] [<path> [<path> ...]]
        xxx --version
        xxx --help
 
-List, filter, and edit XXX/TODO/FIXME remarks in a collection of files.
+List, count, and edit XXX/TODO/FIXME remarks in a collection of files.
 
 In a git repository, this command will only search files tracked by git,
 limited by the paths given on the command-line.  The -b / --branch option will
@@ -79,6 +80,13 @@ def MAIN(args):
         action  = "store_const",
         dest    = "mode",
         const   = LIST)
+
+    modes.add_argument(
+        "-c", "--count",
+        help    = "Count remarks for the given paths",
+        action  = "store_const",
+        dest    = "mode",
+        const   = COUNT)
 
     modes.add_argument(
         "-e", "--edit",
@@ -195,6 +203,10 @@ def LIST(xxxs):
                     printf("{indent}{cyan}:{reset} {line}", locals())
 
             print()
+
+
+def COUNT(xxxs):
+    print(len(list(xxxs)))
 
 
 def EDIT(xxxs):
