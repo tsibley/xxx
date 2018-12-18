@@ -1,12 +1,14 @@
-usage: xxx [-l | --list] [--with <word>] [<path> [<path> ...]]
-       xxx [-e | --edit] [--with <word>] [<path> [<path> ...]]
+usage: xxx [-l | --list]  [--branch] [--with <word>] [<path> [<path> ...]]
+       xxx [-c | --count] [--branch] [--with <word>] [<path> [<path> ...]]
+       xxx [-e | --edit]  [--branch] [--with <word>] [<path> [<path> ...]]
        xxx --version
        xxx --help
 
-List, filter, and edit XXX/TODO/FIXME remarks in a collection of files.
+List, count, and edit XXX/TODO/FIXME remarks in a collection of files.
 
 In a git repository, this command will only search files tracked by git,
-limited by the paths given on the command-line.
+limited by the paths given on the command-line.  The -b / --branch option will
+cause this command to only include remarks added by the current branch.
 
 Outside a git repository, this command walks the filesystem starting with the
 given paths.  If no paths are given, it starts from the current directory.  If
@@ -21,11 +23,16 @@ positional arguments:
 
 optional arguments:
   -l, --list            List remarks for the given paths
+  -c, --count           Count remarks for the given paths
   -e, --edit            Edit remarks for the given paths using vim's quickfix
                         list. Set XXX_EDITOR to use your preferred editor.
   -w <word>, --with <word>
                         Limit output of remarks to those with the given
                         keyword. May be used more than once.
+  -b [<ref>], --branch [<ref>]
+                        Limit output of remarks to those added by the current
+                        git branch since diverging from the given ref.
+                        Defaults to master if no ref is given.
   -h, --help            Show this help
   -v, --version         Show the version of xxx
 

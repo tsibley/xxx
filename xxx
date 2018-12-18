@@ -37,7 +37,7 @@ from tempfile import NamedTemporaryFile
 from typing import List, NamedTuple
 
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 
 EDITOR = shellwords(os.environ.get("XXX_EDITOR", "vim -q"))
 PAGER  = shellwords(os.environ.get("XXX_PAGER",
