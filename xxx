@@ -28,6 +28,7 @@ import os
 import subprocess
 import shlex
 from contextlib import redirect_stdout
+from functools import partial
 from io import TextIOWrapper
 from itertools import takewhile
 from pathlib import Path
@@ -319,12 +320,15 @@ def ls(paths):
 
 
 def git_ls(repo = ".", limit_to = []):
-    for subpath in (Path(repo, path) for path in limit_to):
+    RepoPath = partial(Path, repo)
+
+    for subpath in map(RepoPath, limit_to):
         assert subpath.exists(), "The path '" + str(subpath) + "' does not exist in the git repository."
 
     yield from (
-        Path(repo, file) for file in
-            capture_output(["git", "-C", repo, "ls-files", "--", *limit_to]))
+        subpath
+            for subpath in map(RepoPath, capture_output(["git", "-C", repo, "ls-files", "--", *limit_to]))
+             if not subpath.is_dir())
 
 
 def walk(paths):
