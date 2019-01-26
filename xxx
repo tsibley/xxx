@@ -140,7 +140,7 @@ def MAIN(args):
     # Construct filter sets
     filter_words = wordset(opts.words or [])
 
-    if opts.branch:
+    if opts.branch and git_rev_parse(opts.branch) != git_rev_parse("HEAD"):
         filter_lines = set(
             (filename, line)
                 for filename, lines in git_lines_added(opts.branch)
@@ -372,6 +372,10 @@ def git_lines_added(since_ref = "master"):
             if length:
                 # insertion (+) filename, line interval [start, end)
                 yield (filename, range(start, start + length))
+
+
+def git_rev_parse(rev):
+    return capture_output(["git", "rev-parse", rev])[0]
 
 
 def capture_output(argv):
