@@ -249,7 +249,7 @@ def grep(paths):
                     if xxx is not None:
 
                         # …either the current line continues the remark…
-                        if line.startswith(xxx.prefix):
+                        if xxx.prefix and line.startswith(xxx.prefix):
 
                             # The prefix should always be removed, but the
                             # spacing may not be present for blank continuation
