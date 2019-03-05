@@ -305,6 +305,12 @@ def grep(paths):
 
                         xxx = XXX(file, line_number, [remark], prefix, spacing)
 
+                else:
+                    # Yield any remark which runs up to EOF
+                    if xxx is not None:
+                        yield xxx
+                        xxx = None
+
             except UnicodeDecodeError:
                 # Likely a binary file.  It may be text encoded in something
                 # other than UTF-8, but we have no way of knowing what it is
