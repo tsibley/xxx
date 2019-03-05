@@ -283,7 +283,7 @@ def grep(paths):
                     match = re.search(r"^(?P<prefix>.*?)(?P<spacing>\s*)\b(?P<remark>" + TAG.pattern + r"\b(?![\"']).*)$", line)
 
                     if match:
-                        # See comment below, in the elif block, for why prefix
+                        # See comment above, in the elif block, for why prefix
                         # and spacing are separate.
                         prefix  = match.group("prefix")
                         spacing = match.group("spacing")
