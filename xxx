@@ -334,7 +334,8 @@ def git_ls(repo = ".", limit_to = []):
     yield from (
         subpath
             for subpath in map(RepoPath, capture_output(["git", "-C", repo, "ls-files", "--", *limit_to]))
-             if not subpath.is_dir())
+             if not subpath.is_dir()
+            and subpath.exists())
 
 
 def walk(paths):
