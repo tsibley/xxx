@@ -238,6 +238,12 @@ def printf(string, mapping, **kwargs):
     print(string.format_map(mapping), **kwargs)
 
 
+def match_remark_start(line):
+    match = re.search(r"^(?P<prefix>.*?)(?P<spacing>\s*)\b(?P<remark>" + TAG.pattern + r"\b(?![\"']).*)$", line)
+
+    return match.groupdict() if match else None
+
+
 def grep(paths):
     for file in ls(paths):
         with file.open(encoding = "UTF-8") as fh:
@@ -249,7 +255,7 @@ def grep(paths):
                     if xxx is not None:
 
                         # …either the current line continues the remark…
-                        if xxx.prefix and line.startswith(xxx.prefix):
+                        if xxx.prefix and line.startswith(xxx.prefix) and not match_remark_start(line):
 
                             # The prefix should always be removed, but the
                             # spacing may not be present for blank continuation
@@ -280,14 +286,14 @@ def grep(paths):
                     # Not inside a remark, so let's look for a new one.
                     assert xxx is None
 
-                    match = re.search(r"^(?P<prefix>.*?)(?P<spacing>\s*)\b(?P<remark>" + TAG.pattern + r"\b(?![\"']).*)$", line)
+                    match = match_remark_start(line)
 
                     if match:
                         # See comment above, in the elif block, for why prefix
                         # and spacing are separate.
-                        prefix  = match.group("prefix")
-                        spacing = match.group("spacing")
-                        remark  = match.group("remark")
+                        prefix  = match["prefix"]
+                        spacing = match["spacing"]
+                        remark  = match["remark"]
 
                         # Rescue single-line trailing XXX markers like:
                         #
