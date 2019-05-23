@@ -17,6 +17,9 @@ given paths.  If no paths are given, it starts from the current directory.  If
 a git respository (a directory with a .git directory) is encountered during
 this walk, only the files tracked by git in the repository are searched.
 
+Paths matching any glob-style patterns listed in an ~/.xxxignore file are
+ignored.
+
 Output of --list is automatically paged through XXX_PAGER, PAGER, or less.
 
 Written by Thomas Sibley <https://tsibley.net>.
@@ -30,12 +33,12 @@ import shlex
 from contextlib import redirect_stdout
 from functools import partial
 from io import TextIOWrapper
-from itertools import takewhile
+from itertools import takewhile, filterfalse
 from pathlib import Path
 from shlex import split as shellwords
 from subprocess import Popen
 from tempfile import NamedTemporaryFile
-from typing import List, NamedTuple
+from typing import Callable, Iterable, List, NamedTuple
 
 
 VERSION = '1.1.2'
@@ -59,6 +62,8 @@ XXX = NamedTuple("XXX", [
     ("prefix", str),
     ("spacing", str),
 ])
+
+PathMatcher = Callable[[Path], bool]
 
 
 def MAIN(args):
@@ -148,9 +153,15 @@ def MAIN(args):
     else:
         filter_lines = None
 
+    # Find files
+    paths = opts.paths or ["."]
+    ignored = ignored_matcher()
+
+    files = filterfalse(ignored, ls(paths))
+
     # Find XXXs
     xxxs = (
-        xxx for xxx in grep(opts.paths)
+        xxx for xxx in grep(files)
 
              if (not filter_words
                  or filter_words & wordset(xxx.remark))
@@ -244,8 +255,8 @@ def match_remark_start(line):
     return match.groupdict() if match else None
 
 
-def grep(paths):
-    for file in ls(paths):
+def grep(files):
+    for file in files:
         with file.open(encoding = "UTF-8") as fh:
             try:
                 xxx = None
@@ -358,6 +369,34 @@ def walk(paths):
                 yield from git_ls(base)
             else:
                 yield from (Path(base, file) for file in files)
+
+
+def ignored_matcher():
+    # XXX TODO: This should support walking up the chain of parents looking for
+    # .xxxignore files more-specific to a directory.
+    #   -trs, 23 May 2019
+
+    xxxignore = Path.home() / ".xxxignore"
+    ignored = {}
+
+    if xxxignore.is_file():
+        with xxxignore.open(encoding = "utf-8") as file:
+            ignored = {
+                line for line in map(str.strip, file)
+                      if not line.startswith("#") }
+
+    return path_matcher(ignored)
+
+
+def path_matcher(patterns: Iterable[str]) -> PathMatcher:
+    """
+    Generate a function which matches a Path object against the list of glob
+    *patterns*.
+    """
+    def matches(path: Path) -> bool:
+        return any(map(path.match, patterns))
+
+    return matches
 
 
 def git_lines_added(since_ref = "master"):
