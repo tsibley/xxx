@@ -142,6 +142,10 @@ def MAIN(args):
 
     opts = parser.parse_args(args)
 
+    # Default --branch from git config, if not specified on command line.
+    if opts.branch is None:
+        opts.branch = branch_flag_from_git_config()
+
     # Construct filter sets
     filter_words = wordset(opts.words or [])
 
@@ -428,6 +432,31 @@ def git_lines_added(since_ref = "master"):
 
 def git_rev_parse(rev):
     return capture_output(["git", "rev-parse", rev])[0]
+
+
+def branch_flag_from_git_config():
+    try:
+        # If it's a boolean, then git can canonicalize for us.
+        branch = capture_output(["git", "config", "--bool", "xxx.branch"])[0]
+    except:
+        try:
+            # If it's a branch name, then canonicalization fails.
+            branch = capture_output(["git", "config", "xxx.branch"])[0]
+        except:
+            # Config isn't present.
+            branch = None
+
+    # equivalent to passing --branch
+    if branch == "true":
+        return "master"
+
+    # equivalent to passing --branch=…
+    elif branch:
+        return branch
+
+    # unable to get value
+    else:
+        return None
 
 
 def capture_output(argv):
