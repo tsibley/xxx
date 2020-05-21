@@ -313,15 +313,23 @@ def grep(files):
                         # Rescue single-line trailing XXX markers like:
                         #
                         #     foo = dubious_thing()     # FIXME
+                        #     <-------- prefix --------->
+                        #
+                        #     foo = dubious_thing()  # revisit this choice TODO
+                        #     <---------------- prefix ------------------>
                         #
                         #     # I'll get to this later... TODO
+                        #     <-------- prefix --------->
                         #
-                        # In both cases, the whole line becomes the remark.
-                        def prefix_starts_or_ends_with(string):
-                            return prefix.rstrip().endswith(string) \
-                                or prefix.lstrip().startswith(string)
-
-                        if any(map(prefix_starts_or_ends_with, COMMENT_START_SEQUENCE)):
+                        # but not continuations like this:
+                        #
+                        #     # XXX TODO: foo bar baz
+                        #     # bam bat
+                        #     ^
+                        #     prefix
+                        #
+                        # Trailing markers mean the whole line becomes the remark.
+                        if any((c in prefix and prefix.strip() != c) for c in COMMENT_START_SEQUENCE):
                             remark = line.strip()
 
                         xxx = XXX(file, line_number, [remark], prefix, spacing)
