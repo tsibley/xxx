@@ -318,10 +318,10 @@ def grep(files):
                         #
                         # In both cases, the whole line becomes the remark.
                         def prefix_starts_or_ends_with(string):
-                            return prefix.endswith(string) \
+                            return prefix.rstrip().endswith(string) \
                                 or prefix.lstrip().startswith(string)
 
-                        if remark == "XXX" and any(map(prefix_starts_or_ends_with, COMMENT_START_SEQUENCE)):
+                        if any(map(prefix_starts_or_ends_with, COMMENT_START_SEQUENCE)):
                             remark = line.strip()
 
                         xxx = XXX(file, line_number, [remark], prefix, spacing)
