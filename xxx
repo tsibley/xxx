@@ -411,7 +411,7 @@ def git_lines_added(since_ref = "master"):
 
     filename = None
 
-    for line in capture_output(["git", "diff", "--no-ext-diff", "-U0", merge_base]):
+    for line in capture_output(["git", "diff", "--no-ext-diff", "-U0", merge_base, "--", "."]):
         if line.startswith("+++ b/"):
             filename = Path(ltrim("+++ b/", line)).relative_to(cwd_prefix)
 
