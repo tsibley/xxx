@@ -30,6 +30,7 @@ import re
 import os
 import subprocess
 import shlex
+import sys
 from contextlib import redirect_stdout
 from functools import partial
 from io import TextIOWrapper
@@ -46,6 +47,8 @@ VERSION = '1.1.2'
 EDITOR = shellwords(os.environ.get("XXX_EDITOR", "vim -q"))
 PAGER  = shellwords(os.environ.get("XXX_PAGER",
                     os.environ.get("PAGER", "less -SRFXi")))
+
+COLORIZED = sys.stdout.isatty()
 
 TAG = re.compile("(" + "|".join(["XXX", "TODO", "FIXME"]) + ")")
 
@@ -181,11 +184,11 @@ def MAIN(args):
 def LIST(xxxs):
     # Easier to put these here than require the termcolor library from outside
     # the standard library.
-    green     = "\033[1;32m"
-    blue      = "\033[0;34m"
-    cyan      = "\033[0;36m"
-    on_yellow = "\033[0;103m"
-    reset     = "\033[0m"
+    green     = "\033[1;32m"  if COLORIZED else ""
+    blue      = "\033[0;34m"  if COLORIZED else ""
+    cyan      = "\033[0;36m"  if COLORIZED else ""
+    on_yellow = "\033[0;103m" if COLORIZED else ""
+    reset     = "\033[0m"     if COLORIZED else ""
 
     # Ensure the pager's environment includes LESS=RK, either by setting it or
     # appending it to an existing value, so less interprets color escapes and
