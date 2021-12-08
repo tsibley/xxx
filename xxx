@@ -26,6 +26,7 @@ Written by Thomas Sibley <https://tsibley.net>.
 """
 
 import argparse
+import json
 import re
 import os
 import subprocess
@@ -89,6 +90,13 @@ def MAIN(args):
         action  = "store_const",
         dest    = "mode",
         const   = LIST)
+
+    modes.add_argument(
+        "-j", "--json",
+        help    = "List remarks for the given paths as JSON",
+        action  = "store_const",
+        dest    = "mode",
+        const   = LIST_JSON)
 
     modes.add_argument(
         "-c", "--count",
@@ -222,6 +230,23 @@ def LIST(xxxs):
                     printf("{indent}{cyan}:{reset} {line}", locals())
 
             print()
+
+
+def LIST_JSON(xxxs):
+    class JSONEncoder(json.JSONEncoder):
+        def __init__(self, allow_nan = False, **kwargs):
+            super().__init__(allow_nan = allow_nan, **kwargs)
+
+        def default(self, value):
+            if isinstance(value, Path):
+                return str(value)
+
+            return super().default(value)
+
+    as_json = JSONEncoder().encode
+
+    for xxx in xxxs:
+        print(as_json(xxx._asdict()))
 
 
 def COUNT(xxxs):

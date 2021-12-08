@@ -26,6 +26,7 @@ positional arguments:
 
 optional arguments:
   -l, --list            List remarks for the given paths
+  -j, --json            List remarks for the given paths as JSON
   -c, --count           Count remarks for the given paths
   -e, --edit            Edit remarks for the given paths using vim's quickfix
                         list. Set XXX_EDITOR to use your preferred editor.
