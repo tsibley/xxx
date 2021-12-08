@@ -59,11 +59,17 @@ COMMENT_START_SEQUENCE = [
     "--",   # SQL
 ]
 
+
+Prefix = NamedTuple("Prefix", [
+    ("first", str),
+    ("continued", str),
+])
+
 XXX = NamedTuple("XXX", [
     ("file", Path),
     ("line_number", int),
     ("remark", List[str]),
-    ("prefix", str),
+    ("prefix", Prefix),
     ("spacing", str),
 ])
 
@@ -298,7 +304,7 @@ def grep(files):
                     if xxx is not None:
 
                         # …either the current line continues the remark…
-                        if xxx.prefix and line.startswith(xxx.prefix) and not match_remark_start(line):
+                        if xxx.prefix and line.startswith(xxx.prefix.continued) and not match_remark_start(line):
 
                             # The prefix should always be removed, but the
                             # spacing may not be present for blank continuation
@@ -316,7 +322,7 @@ def grep(files):
                             #
                             # XXX TODO: Support for comment blocks, e.g. /* */
                             # and """ """, without middle leaders.
-                            continued_remark = ltrim(xxx.spacing, ltrim(xxx.prefix, line.rstrip("\n")))
+                            continued_remark = ltrim(xxx.spacing, ltrim(xxx.prefix.continued, line.rstrip("\n")))
 
                             xxx.remark.append(continued_remark)
                             continue
@@ -360,7 +366,20 @@ def grep(files):
                         if any((c in prefix and prefix.strip() != c) for c in COMMENT_START_SEQUENCE):
                             remark = line.strip()
 
-                        xxx = XXX(file, line_number, [remark], prefix, spacing)
+                        # Handle a common multi-line comment convention:
+                        #
+                        #       /* XXX TODO: foo bar baz
+                        #        * bam bat.
+                        #        * YMMV.
+                        #        */
+                        #
+                        # by adjusting the prefix that must match for continued lines.
+                        if prefix.endswith("/*"):
+                            prefix_continued = rtrim("/*", prefix) + " *"
+                        else:
+                            prefix_continued = prefix
+
+                        xxx = XXX(file, line_number, [remark], Prefix(prefix, prefix_continued), spacing)
 
                 else:
                     # Yield any remark which runs up to EOF
@@ -514,6 +533,9 @@ def capture_output(argv):
 
 def ltrim(prefix, string):
     return re.sub('^' + re.escape(prefix), '', string)
+
+def rtrim(suffix, string):
+    return re.sub(re.escape(suffix) + '$', '', string)
 
 
 if __name__ == "__main__":
