@@ -166,6 +166,7 @@ def MAIN(args):
     # Construct filter sets
     filter_words = wordset(opts.words or [])
 
+    # XXX FIXME: This assumes we're in a git repo already.
     if opts.branch and git_rev_parse(opts.branch) != git_rev_parse("HEAD"):
         filter_lines = set(
             (filename, line)
@@ -239,18 +240,6 @@ def LIST(xxxs):
 
 
 def LIST_JSON(xxxs):
-    class JSONEncoder(json.JSONEncoder):
-        def __init__(self, allow_nan = False, **kwargs):
-            super().__init__(allow_nan = allow_nan, **kwargs)
-
-        def default(self, value):
-            if isinstance(value, Path):
-                return str(value)
-
-            return super().default(value)
-
-    as_json = JSONEncoder().encode
-
     for xxx in xxxs:
         print(as_json(xxx._asdict()))
 
@@ -294,7 +283,7 @@ def match_remark_start(line):
 
 
 def grep(files):
-    for file in files:
+    def _grep(fh):
         with file.open(encoding = "UTF-8") as fh:
             try:
                 xxx = None
@@ -393,6 +382,87 @@ def grep(files):
                 # for sure.
                 pass
 
+    cache = Cache()
+
+    for file in files:
+        try:
+            yield from cache[file]
+        except KeyError:
+            cache[file] = _grep(file)
+            yield from cache[file]
+
+
+class Cache:
+    dir = Path.home() / ".cache/xxx"
+
+    def __init__(self):
+        self.dir.mkdir(parents = False, exist_ok = True)
+
+        try:
+            # XXX FIXME: This assumes we're in a git repo, but we might have
+            # been called from outside of one and traversed into one (via
+            # walk()).
+            #
+            # XXX FIXME: this doesn't capture working tree changes!
+            ls_tree = capture_output(["git", "ls-tree", "-r", "--full-tree", "-z", "HEAD"])[0].rstrip("\0").split("\0")
+
+        except subprocess.CalledProcessError:
+            return
+
+        self.file_hashes = {
+            name: hash
+                for _, _, hash, name
+                 in (line.split(maxsplit = 3) for line in ls_tree) }
+
+    def __getitem__(self, path: Path):
+        key = self.key(path)
+
+        if key is None:
+            raise KeyError(path)
+
+        try:
+            with (self.dir / key).open("rb") as file:
+                for line in file:
+                    xxx = json.loads(line)
+                    yield XXX(
+                        Path(xxx["file"]),
+                        xxx["line_number"],
+                        xxx["remark"],
+                        Prefix(*xxx["prefix"]),
+                        xxx["spacing"])
+
+        except FileNotFoundError:
+            raise KeyError(path)
+
+    def __setitem__(self, path: Path, xxxs: List[XXX]):
+        key = self.key(path)
+
+        if key is None:
+            raise KeyError(path)
+
+        with (self.dir / key).open("w") as file:
+            for xxx in xxxs:
+                print(as_json(xxx._asdict()), file = file)
+
+    def key(self, path: Path):
+        # XXX FIXME?
+        #norm_path = str(path.resolve(strict = False))
+        return self.file_hashes.get(str(path))
+
+
+class JSONEncoder(json.JSONEncoder):
+    def __init__(self, allow_nan = False, **kwargs):
+        super().__init__(allow_nan = allow_nan, **kwargs)
+
+    def default(self, value):
+        if isinstance(value, Path):
+            return str(value)
+
+        return super().default(value)
+
+
+as_json = JSONEncoder().encode
+
 
 def ls(paths):
     try:
@@ -487,6 +557,10 @@ def git_lines_added(since_ref = "master"):
 
 def git_rev_parse(rev):
     return capture_output(["git", "rev-parse", rev])[0]
+
+
+def git_ls_tree():
+    capture_output(["git", "-C", repo, "ls-files", "--", *limit_to])
 
 
 def branch_flag_from_git_config():
