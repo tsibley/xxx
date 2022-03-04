@@ -324,6 +324,19 @@ def grep(files):
                             # and """ """, without middle leaders.
                             continued_remark = ltrim(xxx.spacing, ltrim(xxx.prefix.continued, line.rstrip("\n")))
 
+                            # Skip the final non-content line in a common
+                            # multi-line comment convention:
+                            #
+                            #       /* XXX TODO: foo bar baz
+                            #        * bam bat.
+                            #        * YMMV.
+                            #        */
+                            #
+                            # by skipping if the line is (*/).  See also the
+                            # handling of the start further below.
+                            if xxx.prefix.first.endswith("/*") and line.rstrip().endswith("*/") and continued_remark == "/":
+                                continue
+
                             xxx.remark.append(continued_remark)
                             continue
 
