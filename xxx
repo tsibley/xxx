@@ -35,11 +35,12 @@ import sys
 from contextlib import redirect_stdout
 from functools import partial
 from io import TextIOWrapper
-from itertools import takewhile, filterfalse
+from itertools import chain, takewhile, filterfalse
 from pathlib import Path
 from shlex import split as shellwords
 from subprocess import Popen
 from tempfile import NamedTemporaryFile
+from textwrap import dedent
 from typing import Callable, Iterable, List, NamedTuple
 
 
@@ -71,6 +72,7 @@ XXX = NamedTuple("XXX", [
     ("remark", List[str]),
     ("prefix", Prefix),
     ("spacing", str),
+    ("context", List[str]),
 ])
 
 PathMatcher = Callable[[Path], bool]
@@ -148,6 +150,12 @@ def MAIN(args):
         dest    = "branch",
         action  = "store_false")
 
+    parser.add_argument(
+        "-A", "--after",
+        help    = "Include <n> lines after a remark for context.",
+        metavar = "<n>",
+        type    = int)
+
     modes.add_argument(
         "-h", "--help",
         help    = "Show this help",
@@ -191,7 +199,7 @@ def MAIN(args):
 
     # Find XXXs
     xxxs = (
-        xxx for xxx in grep(files)
+        xxx for xxx in grep(files, opts.after)
 
              if (not filter_words
                  or filter_words & wordset(xxx.remark))
@@ -236,7 +244,33 @@ def LIST(xxxs):
                 printf("{green}{xxx.file}{reset}", locals())
                 printed.add(xxx.file)
 
-            for index, line in enumerate(xxx.remark):
+            # When we have context lines, post-process the remark and context
+            # together to dedent them as a whole block so that variation within
+            # the combined lines is preserved.  This also restores the prefix
+            # and spacing to each line of the remark to preserve alignment.
+            #
+            # XXX TODO: This might be better implemented (maybe in grep()
+            # even?) by ltrim()-ing some leading substring of xxx.prefix (e.g.
+            # the part of xxx.prefix before the first COMMENT_START_SEQUENCE),
+            # but that's fiddlier and this is easier.  Let's see if it's good
+            # enough.
+            if xxx.context:
+                # Trailing remarks at lines' end include the prefix.  See
+                # "Rescue single-line trailing XXX markers" below.
+                if xxx.remark[0].startswith(xxx.prefix.first.lstrip()):
+                    first_line = xxx.remark[0]
+                else:
+                    first_line = xxx.prefix.first + xxx.spacing + xxx.remark[0]
+
+                remaining_lines = [
+                    xxx.prefix.continued + xxx.spacing + l
+                        for l in xxx.remark[1:] ]
+
+                lines = dedent("\n".join(chain([first_line], remaining_lines, xxx.context))).split("\n")
+            else:
+                lines = xxx.remark
+
+            for index, line in enumerate(lines):
                 if index == 0:
                     line = TAG.sub(on_yellow + r"\1" + reset, line)
                     printf("{blue}{xxx.line_number}{cyan}:{reset} {line}", locals())
@@ -302,7 +336,7 @@ def match_remark_start(line):
     return match.groupdict() if match else None
 
 
-def grep(files):
+def grep(files, context_after = 0):
     for file in files:
         with file.open(encoding = "UTF-8") as fh:
             try:
@@ -347,6 +381,11 @@ def grep(files):
                                 continue
 
                             xxx.remark.append(continued_remark)
+                            continue
+
+                        # …is following context for the remark…
+                        elif context_after and len(xxx.context) < context_after:
+                            xxx.context.append(line.rstrip("\n"))
                             continue
 
                         # …or ends the remark.
@@ -401,7 +440,7 @@ def grep(files):
                         else:
                             prefix_continued = prefix
 
-                        xxx = XXX(file, line_number, [remark], Prefix(prefix, prefix_continued), spacing)
+                        xxx = XXX(file, line_number, [remark], Prefix(prefix, prefix_continued), spacing, [])
 
                 else:
                     # Yield any remark which runs up to EOF
