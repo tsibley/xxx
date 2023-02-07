@@ -139,6 +139,15 @@ def MAIN(args):
         nargs   = "?",
         const   = "master")
 
+    parser.add_argument(
+        "--no-branch",
+        help    = "Do not limit output of remarks to those added by the current git branch "
+                  "since diverging from the given ref.  "
+                  "Disables a previously given -b or --branch option "
+                  "and reading of xxx.branch from git config.",
+        dest    = "branch",
+        action  = "store_false")
+
     modes.add_argument(
         "-h", "--help",
         help    = "Show this help",
