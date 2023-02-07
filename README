@@ -8,7 +8,9 @@ List, count, and edit XXX/TODO/FIXME remarks in a collection of files.
 
 In a git repository, this command will only search files tracked by git,
 limited by the paths given on the command-line.  The -b / --branch option will
-cause this command to only include remarks added by the current branch.
+cause this command to only include remarks added by the current branch.  Set
+xxx.branch in your git config (per repo or globally) to automatically enable
+the --branch option.
 
 Outside a git repository, this command walks the filesystem starting with the
 given paths.  If no paths are given, it starts from the current directory.  If
@@ -37,6 +39,11 @@ optional arguments:
                         Limit output of remarks to those added by the current
                         git branch since diverging from the given ref.
                         Defaults to master if no ref is given.
+  --no-branch           Do not limit output of remarks to those added by the
+                        current git branch since diverging from the given ref.
+                        Disables a previously given -b or --branch option and
+                        reading of xxx.branch from git config.
+  -A <n>, --after <n>   Include <n> lines after a remark for context.
   -h, --help            Show this help
   -v, --version         Show the version of xxx
 
