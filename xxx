@@ -386,7 +386,7 @@ def grep(files, context_after = 0):
                             continue
 
                         # …is following context for the remark…
-                        elif context_after and len(xxx.context) < context_after:
+                        elif context_after and len(xxx.context) < context_after and not match_remark_start(line):
                             xxx.context.append(line.rstrip("\n"))
                             continue
 
