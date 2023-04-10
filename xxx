@@ -470,9 +470,24 @@ def git_ls(repo = ".", limit_to = []):
     for subpath in map(RepoPath, limit_to):
         assert subpath.exists(), "The path '" + str(subpath) + "' does not exist in the git repository."
 
+    def text_files():
+        for line in capture_output(["git", "-C", repo, "ls-files", "--eol", "--", *limit_to]):
+            # --eol gives lines like
+            #
+            #    i/<eolinfo><SPACES>w/<eolinfo><SPACES>attr/<eolattr><SPACE*><TAB><file>
+            #
+            eol, path = line.split("\t", 1)
+
+            # Ignore non-text files, either by Git's own intuition of the file
+            # in the work dir or an explicitly set attribute.
+            if "w/-text" in eol or "attr/-text" in eol:
+                continue
+
+            yield path
+
     yield from (
         subpath
-            for subpath in map(RepoPath, capture_output(["git", "-C", repo, "ls-files", "--", *limit_to]))
+            for subpath in map(RepoPath, text_files())
              if not subpath.is_dir()
             and subpath.exists())
 
