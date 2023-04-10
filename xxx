@@ -505,7 +505,7 @@ def ignored_matcher():
         with xxxignore.open(encoding = "utf-8") as file:
             ignored = {
                 line for line in map(str.strip, file)
-                      if not line.startswith("#") }
+                      if line and not line.startswith("#") }
 
     return path_matcher(ignored)
 
