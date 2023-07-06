@@ -284,18 +284,6 @@ def LIST(xxxs):
 
 
 def LIST_JSON(xxxs):
-    class JSONEncoder(json.JSONEncoder):
-        def __init__(self, allow_nan = False, **kwargs):
-            super().__init__(allow_nan = allow_nan, **kwargs)
-
-        def default(self, value):
-            if isinstance(value, Path):
-                return str(value)
-
-            return super().default(value)
-
-    as_json = JSONEncoder().encode
-
     for xxx in xxxs:
         print(as_json(xxx._asdict()))
 
@@ -455,6 +443,20 @@ def grep(files, context_after = 0):
                 # other than UTF-8, but we have no way of knowing what it is
                 # for sure.
                 pass
+
+
+class JSONEncoder(json.JSONEncoder):
+    def __init__(self, allow_nan = False, **kwargs):
+        super().__init__(allow_nan = allow_nan, **kwargs)
+
+    def default(self, value):
+        if isinstance(value, Path):
+            return str(value)
+
+        return super().default(value)
+
+
+as_json = JSONEncoder().encode
 
 
 def ls(paths):
