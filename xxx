@@ -36,6 +36,7 @@ import shlex
 import sys
 from contextlib import redirect_stdout
 from functools import partial
+from hashlib import md5
 from io import TextIOWrapper
 from itertools import chain, takewhile, filterfalse
 from pathlib import Path
@@ -67,6 +68,9 @@ Prefix = NamedTuple("Prefix", [
     ("first", str),
     ("continued", str),
 ])
+
+# Bump this if the structure of XXX below changes, to invalidate any caches.
+XXX_VERSION = 1
 
 XXX = NamedTuple("XXX", [
     ("file", Path),
@@ -156,7 +160,8 @@ def MAIN(args):
         "-A", "--after",
         help    = "Include <n> lines after a remark for context.",
         metavar = "<n>",
-        type    = int)
+        type    = int,
+        default = 0)
 
     modes.add_argument(
         "-h", "--help",
@@ -328,7 +333,7 @@ def match_remark_start(line):
 
 
 def grep(files, context_after = 0):
-    for file in files:
+    def _grep(file, context_after):
         with file.open(encoding = "UTF-8") as fh:
             try:
                 xxx = None
@@ -444,6 +449,76 @@ def grep(files, context_after = 0):
                 # other than UTF-8, but we have no way of knowing what it is
                 # for sure.
                 pass
+
+    cache = Cache(context_after)
+
+    for file in files:
+        try:
+            yield from cache[file]
+        except KeyError:
+            xxxs = list(_grep(file, context_after))
+            cache[file] = xxxs
+            yield from xxxs
+
+
+class Cache:
+    dir = Path.home() / ".cache/xxx"
+
+    def __init__(self, context_after):
+        self.context_after = context_after
+        self.dir.mkdir(parents = False, exist_ok = True)
+
+    def __getitem__(self, path: Path):
+        key = self.key(path)
+
+        if key is None:
+            raise KeyError(path)
+
+        try:
+            with (self.dir / key).open("rb") as file:
+                for line in file:
+                    xxx = json.loads(line)
+                    yield XXX(
+                        Path(xxx["file"]),
+                        xxx["line_number"],
+                        xxx["remark"],
+                        Prefix(*xxx["prefix"]),
+                        xxx["spacing"],
+                        xxx["context"])
+
+        except FileNotFoundError:
+            raise KeyError(path)
+
+    def __setitem__(self, path: Path, xxxs: List[XXX]):
+        key = self.key(path)
+
+        if key is None:
+            raise KeyError(path)
+
+        with (self.dir / key).open("w") as file:
+            for xxx in xxxs:
+                print(as_json(xxx._asdict()), file = file)
+
+    def key(self, path: Path):
+        return f"{XXX_VERSION}-{self._digest(path)}-A{self.context_after}"
+
+    def _digest(self, path: Path):
+        # Performant approach borrowed, with modifications, from
+        # hashlib.file_digest in Python 3.11.
+        if not hasattr(self, "buf"):
+            self.buf = bytearray(2**18)       # Reusable buffer to reduce allocations.
+            self.view = memoryview(self.buf)
+
+        digest = md5()
+
+        with path.open("rb") as fh:
+            while True:
+                size = fh.readinto(self.buf)
+                if size == 0:
+                    break  # EOF
+                digest.update(self.view[:size])
+
+        return digest.hexdigest()
 
 
 class JSONEncoder(json.JSONEncoder):
