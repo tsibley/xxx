@@ -141,11 +141,10 @@ def MAIN(args):
     parser.add_argument(
         "-b", "--branch",
         help    = "Limit output of remarks to those added by the current git branch "
-                  "since diverging from the given ref.  Defaults to master if no ref "
-                  "is given.",
+                  "since diverging from the given ref.  Defaults to master (or value "
+                  "of xxx.branch config key) if no ref is given.",
         metavar = "<ref>",
-        nargs   = "?",
-        const   = "master")
+        nargs   = "?")
 
     parser.add_argument(
         "--no-branch",
